@@ -8,6 +8,7 @@ import io.milvus.param.collection.*;
 import io.milvus.param.dml.InsertParam;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.param.index.CreateIndexParam;
+import io.milvus.param.index.DescribeIndexParam;
 import io.milvus.response.SearchResultsWrapper;
 
 import java.util.Arrays;
@@ -137,12 +138,17 @@ public class Main {
     }
 
     private static void createIndexIfNotExists() {
+        if (indexExists()) {
+            System.out.println("Index already exists. Skipping creation.");
+            return;
+        }
+
         CreateIndexParam createIndexParam = CreateIndexParam.newBuilder()
                 .withCollectionName(MY_COLLECTION)
                 .withFieldName("embedding")
                 .withIndexName("embedding_index")
                 .withIndexType(IndexType.IVF_FLAT)
-                .withMetricType(MetricType.L2)
+                .withMetricType(MetricType.COSINE)
                 .withExtraParam("{\"nlist\":128}")
                 .withSyncMode(true)
                 .build();
@@ -166,7 +172,7 @@ public class Main {
 
         SearchParam searchParam = SearchParam.newBuilder()
                 .withCollectionName(MY_COLLECTION)
-                .withMetricType(MetricType.L2)
+                .withMetricType(MetricType.COSINE)
                 .withOutFields(List.of("id"))
                 .withTopK(topK)
                 .withVectors(List.of(queryVector))  // deve essere una lista di liste
@@ -187,5 +193,15 @@ public class Main {
         for (SearchResultsWrapper.IDScore result : scores) {
             System.out.printf("ID: %d, Distance: %.4f%n", result.getLongID(), result.getScore());
         }
+    }
+
+    private static boolean indexExists() {
+        R<DescribeIndexResponse> response = milvusClient.describeIndex(
+                DescribeIndexParam.newBuilder()
+                        .withCollectionName(MY_COLLECTION)
+                        .build()
+        );
+
+        return response.getStatus() == R.Status.Success.getCode() && !response.getData().getIndexDescriptionsList().isEmpty();
     }
 }
